@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+const { App } = require('@slack/bolt')
 const https = require('https');
 const projectId = process.env.API_KEY;
 
@@ -12,8 +12,13 @@ const options = {
         'Content-Type': 'application/json'
       },
 }
+const slackApp = new App({
+    token: process.env.BOT_OAUTH_TOKEN,
+    signingSecret: process.env.SIGNING_SECRET
+  });
 
 blockTransactionsCallback = function(response){
+    const walletAddress = "0x503828976d22510aad0201ac7ec88293211d23da";
     let chunks = '';
     console.log(`statusCode: ${response.statusCode}`)
     response.on('data', d => {
@@ -21,12 +26,22 @@ blockTransactionsCallback = function(response){
     })
     response.on('end', ()=>{
         let schema = JSON.parse(chunks);
-        let transactions = schema['result']['transactions']
+        let transactions = schema['result']['transactions'];
         // console.log(transactions)
-        console.log(transactions.length)
+        console.log(transactions.length);
         for (let i = 0; i < transactions.length; i++) {
+            // console.log(transactions[i]["from"]);
+            // console.log(walletAddress);
             if(transactions[i]["to"] == walletAddress || transactions[i]["from"] == walletAddress){
-                console.log(transactions[i])
+                console.log(transactions[i]);
+                (async () => {
+                    const result = await slackApp.client.chat.postMessage({
+                      token: process.env.BOT_OAUTH_TOKEN,
+                      channel: "C049E92RDLH",
+                      text: transactions[i]
+                    });
+                    console.log(result);
+                  })();
             }
           }
     })
@@ -72,7 +87,7 @@ function getLatestBlockNumber(){
     req.end();
      
   }
-const walletAddress = '0xa7206d878c5c3871826dfdb42191c49b1d11f466'
+
 let previousBlock = 0;
 var the_interval = 5 * 1000;
 setInterval(getLatestBlockNumber, the_interval);
