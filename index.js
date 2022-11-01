@@ -2,9 +2,6 @@ require('dotenv').config();
 
 const https = require('https');
 const projectId = process.env.API_KEY;
-const data = JSON.stringify({
-    "jsonrpc":"2.0","method":"eth_blockNumber","params": [],"id":1
-  })
 
 const options = {
     host: 'mainnet.infura.io',
@@ -14,40 +11,15 @@ const options = {
     headers: {
         'Content-Type': 'application/json'
       },
-};
-const getBlockNumber = https.request(options, getBlockNumber => {
-    console.log(`statusCode: ${getBlockNumber.statusCode}`)
+}
 
-    getBlockNumber.on('data', d => {
-    process.stdout.write(d)
-
-    var obj = JSON.parse(d);
-    var latestBlock = parseInt(obj["result"],16) - 1
-    var latestCompleteBlock = "0x"+latestBlock.toString(16)
-    var getBlock = {
-        "jsonrpc":"2.0",
-        "method":"eth_getBlockByNumber",
-        "params": [latestCompleteBlock,true],
-        "id":1
-    }
-    getTransactions.write(JSON.stringify(getBlock))
-    getTransactions.end()
-    })
-  })
-
-  
-
-  getBlockNumber.on('error', error => {
-    console.error(error)
-  })
-
-  const getTransactions = https.request(options, getTransactions => {
+blockTransactionsCallback = function(response){
     let chunks = '';
-    console.log(`statusCode: ${getTransactions.statusCode}`)
-    getTransactions.on('data', d => {
+    console.log(`statusCode: ${response.statusCode}`)
+    response.on('data', d => {
         chunks += d;
     })
-    getTransactions.on('end', ()=>{
+    response.on('end', ()=>{
         let schema = JSON.parse(chunks);
         let transactions = schema['result']['transactions']
         // console.log(transactions)
@@ -58,14 +30,49 @@ const getBlockNumber = https.request(options, getBlockNumber => {
             }
           }
     })
-  })
+    response.on('error', error => {
+        console.error(error)
+    })
+}
 
-  
+function getTransactions(latestCompleteBlock){
+    let blockNumber = "0x"+latestCompleteBlock.toString(16);
+    const data = JSON.stringify({
+        "jsonrpc":"2.0",
+        "method":"eth_getBlockByNumber",
+        "params": [blockNumber,true],
+        "id":1
+    })
+    var req = https.request(options, blockTransactionsCallback);
+    req.write(data);
+    req.end();
+}
 
-  getTransactions.on('error', error => {
-    console.error(error)
-  })
-  const walletAddress = '0xa7206d878c5c3871826dfdb42191c49b1d11f466'
-  getBlockNumber.write(data)
-  getBlockNumber.end()
-//   getTransactions.write(getBlock)
+latestBlockCallback = function(response){
+    console.log(`statusCode: ${response.statusCode}`)
+    response.on('data', d => {
+        var obj = JSON.parse(d);
+        latestBlock = parseInt(obj["result"],16)
+        if(latestBlock != previousBlock){
+            console.log(latestBlock);
+            getTransactions(previousBlock);
+            previousBlock = latestBlock;
+        }
+    })
+    response.on('error', error => {
+        console.error(error)
+    })
+}
+function getLatestBlockNumber(){
+    const data = JSON.stringify({
+        "jsonrpc":"2.0","method":"eth_blockNumber","params": [],"id":1
+      })
+    var req = https.request(options, latestBlockCallback);
+    req.write(data);
+    req.end();
+     
+  }
+const walletAddress = '0xa7206d878c5c3871826dfdb42191c49b1d11f466'
+let previousBlock = 0;
+var the_interval = 5 * 1000;
+setInterval(getLatestBlockNumber, the_interval);
